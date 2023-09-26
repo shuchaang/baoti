@@ -1,0 +1,3 @@
+username=
+pwd=
+times=3/4
