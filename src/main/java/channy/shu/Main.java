@@ -14,25 +14,29 @@ import java.io.InputStreamReader;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class Main {
 
 
     public static void main(String[] args) throws InterruptedException {
         Param param = readParam();
-        if(StringUtil.isNullOrEmpty(param.getPwd())
-                || StringUtil.isNullOrEmpty(param.getUsername())
-                || param.getTimes() == null || param.getTimes().size() != 2){
-            System.out.println("no valid info");
+        if(StringUtil.isNullOrEmpty(param.getPwd()) || StringUtil.isNullOrEmpty(param.getUsername())){
+            System.out.println("no valid password or username");
             System.exit(0);
         }
-
+        if(param.getMode()==null){
+            param.setMode(MODE_TOMORROW);
+        }
         WebDriver driver = new ChromeDriver();
         login(driver,param);
         //已登陆
+       fetch(driver,param);
+    }
+
+    private static void fetch(WebDriver driver, Param param) throws InterruptedException {
         driver.get("https://bawtt.ydmap.cn/booking/schedule/104005?salesItemId=103168");
         Thread.sleep(2000);
         WebElement list = driver.findElement(By.xpath("//*[@id=\"app\"]/div/div/section/div/div[2]/div[2]/div/ul"));
@@ -41,26 +45,46 @@ public class Main {
         }
         List<WebElement> li = list.findElements(By.tagName("li"));
         boolean succ = false;
-        LocalDateTime start = LocalDate.now().atTime(8, 0,0);
-        LocalDateTime end = LocalDate.now().atTime(8, 15);
+        LocalDateTime workStart = LocalDate.now().atTime(7, 30,0);
+        LocalDateTime workEnd = LocalDate.now().atTime(19, 0);
+        LocalDateTime fetchStart = LocalDate.now().atTime(8, 0);
         while(!succ){
             LocalDateTime now = LocalDateTime.now();
-            if(now.isBefore(start)){
-                long sec = Duration.between(now, start).toMillis();
-                System.out.println(sec/1000+"秒后启动");
-                Thread.sleep(sec+500);
+            while(now.isBefore(workStart)||now.isAfter(workEnd)){
+                System.out.println("工作时间:早上7:30-晚上19:00");
+                Thread.sleep(10000);
             }
-            if(now.isAfter(start)&&now.isBefore(end)){
-                succ = fetchPlate(driver, li.get(li.size()-1),param);
+            while (now.isBefore(fetchStart)){
+                now = LocalDateTime.now();
+                long ms = Duration.between(now, fetchStart).toMillis();
+                long wait = ms / 1000;
+                System.out.println("距离八点还有"+wait+"秒,等待中");
+                if(ms>10000){
+                    Thread.sleep(10000);
+                }else{
+                    Thread.sleep(ms+300);
+                }
+            }
+            if(Objects.equals(param.getMode(), MODE_TODAY)){
+                li.get(0).click();
+                Thread.sleep(500);
+                succ = fetchPlate(driver);
             }else{
-                for (WebElement webElement : li) {
-                    succ = fetchPlate(driver,webElement, param);
-                    Thread.sleep(3000);
+                li.get(1).click();
+                Thread.sleep(500);
+                while(!succ){
+                    succ = fetchPlate(driver);
+                    System.out.println("重试中");
+                    if(!succ){
+                        Thread.sleep(3000);
+                    }
                 }
             }
         }
     }
 
+    public static final Integer MODE_TODAY=1;
+    public static final Integer MODE_TOMORROW=2;
     private static Param readParam() {
         try {
             Param p =new Param();
@@ -72,14 +96,14 @@ public class Main {
                     p.setUsername(str.split("=")[1]);
                 }else if(str.contains("pwd")) {
                     p.setPwd(str.split("=")[1]);
-                }else if (str.contains("times")){
+                } else if (str.contains("mode")){
                     String[] split = str.split("=");
-                    String[] split1 = split[1].split("/");
-                    List<Integer> t = new ArrayList<>();
-                    for (String s : split1) {
-                        t.add(Integer.valueOf(s));
+                    String code = split[1];
+                    if(code.equalsIgnoreCase("today")){
+                        p.setMode(MODE_TODAY);
+                    }else{
+                        p.setMode(MODE_TOMORROW);
                     }
-                    p.setTimes(t);
                 }
             }
             return p;
@@ -90,9 +114,7 @@ public class Main {
         return null;
     }
 
-    private static boolean fetchPlate(WebDriver driver, WebElement day, Param param) throws InterruptedException {
-        day.click();
-        Thread.sleep(1000);
+    private static boolean fetchPlate(WebDriver driver){
         boolean success = false;
         Map<String,String> headerMap = Maps.newHashMap();
         List<WebElement> headers = driver.findElement(By.xpath("//*[@id=\"app\"]/div/div/section/div/div[3]/div/div[2]/table/thead/tr[1]")).findElements(By.tagName("th"));
@@ -107,24 +129,26 @@ public class Main {
         }
 
         List<WebElement> trs = table.findElements(By.tagName("tr"));
-        List<WebElement> td8s = trs.get(param.getTimes().get(0)-1).findElements(By.tagName("td"));
-        List<WebElement> td9s = trs.get(param.getTimes().get(1)-1).findElements(By.tagName("td"));
+        int size = trs.size();
+        List<WebElement> td8s = trs.get(size-1).findElements(By.tagName("td"));
+        List<WebElement> td9s = trs.get(size-2).findElements(By.tagName("td"));
         Map<String,WebElement> td8Map = Maps.newHashMap();
         Map<String,WebElement> td9Map = Maps.newHashMap();
-        for (WebElement td8 : td8s) {
+        size = td8s.size();
+        for (int i = 0; i < size; i++) {
+            WebElement td8 = td8s.get(i);
+            WebElement td9 = td9s.get(i);
             String aClass = td8.getAttribute("class");
             if (aClass.contains("col-completed") || aClass.contains("col-inprocess")) {
                 continue;
             }
             String plat = td8.getAttribute("data-platform-id");
             td8Map.put(plat,td8);
-        }
-        for (WebElement td9 : td9s) {
-            String aClass = td9.getAttribute("class");
+            aClass = td9.getAttribute("class");
             if (aClass.contains("col-completed") || aClass.contains("col-inprocess")) {
                 continue;
             }
-            String plat = td9.getAttribute("data-platform-id");
+            plat = td9.getAttribute("data-platform-id");
             td9Map.put(plat,td9);
         }
         if(td8Map.isEmpty() && td9Map.isEmpty()){

@@ -1,3 +1,2 @@
-username=
-pwd=
-times=3/4
+username=18126355089
+pwd=sc123456

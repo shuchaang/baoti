@@ -6,12 +6,10 @@ import java.util.List;
 public class Param {
     private String username;
     private String pwd;
-    private List<Integer> times;
+    private Integer mode;
 
 
-    public List<Integer> getTimes() {
-        return times;
-    }
+
 
     public String getPwd() {
         return pwd;
@@ -25,11 +23,16 @@ public class Param {
         this.pwd = pwd;
     }
 
-    public void setTimes(List<Integer> times) {
-        this.times = times;
-    }
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public Integer getMode() {
+        return mode;
+    }
+
+    public void setMode(Integer mode) {
+        this.mode = mode;
     }
 }
