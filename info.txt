@@ -1,2 +1,3 @@
 username=18126355089
 pwd=sc123456
+mode=next

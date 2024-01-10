@@ -45,15 +45,9 @@ public class Main {
         }
         List<WebElement> li = list.findElements(By.tagName("li"));
         boolean succ = false;
-        LocalDateTime workStart = LocalDate.now().atTime(7, 30,0);
-        LocalDateTime workEnd = LocalDate.now().atTime(19, 0);
         LocalDateTime fetchStart = LocalDate.now().atTime(8, 0);
         while(!succ){
             LocalDateTime now = LocalDateTime.now();
-            while(now.isBefore(workStart)||now.isAfter(workEnd)){
-                System.out.println("工作时间:早上7:30-晚上19:00");
-                Thread.sleep(10000);
-            }
             while (now.isBefore(fetchStart)){
                 now = LocalDateTime.now();
                 long ms = Duration.between(now, fetchStart).toMillis();
@@ -65,20 +59,24 @@ public class Main {
                     Thread.sleep(ms+300);
                 }
             }
-            if(Objects.equals(param.getMode(), MODE_TODAY)){
-                li.get(0).click();
-                Thread.sleep(500);
-                succ = fetchPlate(driver);
-            }else{
-                li.get(1).click();
-                Thread.sleep(500);
-                while(!succ){
+            try {
+                if (Objects.equals(param.getMode(), MODE_TODAY)) {
+                    li.get(0).click();
+                    Thread.sleep(5000);
                     succ = fetchPlate(driver);
-                    System.out.println("重试中");
-                    if(!succ){
-                        Thread.sleep(3000);
+                } else {
+                    li.get(1).click();
+                    Thread.sleep(1000);
+                    while (!succ) {
+                        succ = fetchPlate(driver);
+                        System.out.println("重试中");
+                        if (!succ) {
+                            Thread.sleep(3000);
+                        }
                     }
                 }
+            }catch (Exception e){
+                e.printStackTrace();
             }
         }
     }
@@ -113,13 +111,15 @@ public class Main {
         }
         return null;
     }
+    public static final String AIM1="20:00-21:00";
+    public static final String AIM2="21:00-22:00";
 
     private static boolean fetchPlate(WebDriver driver){
         boolean success = false;
         Map<String,String> headerMap = Maps.newHashMap();
-        List<WebElement> headers = driver.findElement(By.xpath("//*[@id=\"app\"]/div/div/section/div/div[3]/div/div[2]/table/thead/tr[1]")).findElements(By.tagName("th"));
+        List<WebElement> headers = driver.findElement(By.xpath("//*[@id=\"app\"]/div/div/section/div/div[3]/div/div[2]/table")).findElements(By.tagName("th"));
         for (WebElement header : headers) {
-            headerMap.put(header.getAttribute("data-platform-id"),header.getText());
+            headerMap.put(header.getAttribute("data-platform-id"),header.getAccessibleName());
         }
 
         //获取到table
@@ -127,29 +127,20 @@ public class Main {
         if (table == null) {
             throw new RuntimeException("table is null");
         }
-
-        List<WebElement> trs = table.findElements(By.tagName("tr"));
-        int size = trs.size();
-        List<WebElement> td8s = trs.get(size-1).findElements(By.tagName("td"));
-        List<WebElement> td9s = trs.get(size-2).findElements(By.tagName("td"));
+        List<WebElement> tds = table.findElements(By.tagName("td"));
         Map<String,WebElement> td8Map = Maps.newHashMap();
         Map<String,WebElement> td9Map = Maps.newHashMap();
-        size = td8s.size();
-        for (int i = 0; i < size; i++) {
-            WebElement td8 = td8s.get(i);
-            WebElement td9 = td9s.get(i);
-            String aClass = td8.getAttribute("class");
-            if (aClass.contains("col-completed") || aClass.contains("col-inprocess")) {
+        for (WebElement td : tds) {
+            String status = td.getAttribute("class");
+            if (status.contains("col-completed") || status.contains("col-inprocess")) {
                 continue;
             }
-            String plat = td8.getAttribute("data-platform-id");
-            td8Map.put(plat,td8);
-            aClass = td9.getAttribute("class");
-            if (aClass.contains("col-completed") || aClass.contains("col-inprocess")) {
-                continue;
+            String text = td.getText();
+            if(text.contains(AIM1)){
+                td8Map.put(td.getAttribute("data-platform-id"),td);
+            }else if(text.contains(AIM2)){
+                td9Map.put(td.getAttribute("data-platform-id"),td);
             }
-            plat = td9.getAttribute("data-platform-id");
-            td9Map.put(plat,td9);
         }
         if(td8Map.isEmpty() && td9Map.isEmpty()){
             return false;
